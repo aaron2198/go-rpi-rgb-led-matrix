@@ -6,8 +6,8 @@ import (
 	"image/color"
 	"time"
 
+	rgbmatrix "github.com/aaron2198/go-rpi-rgb-led-matrix"
 	"github.com/fogleman/gg"
-	"github.com/mcuadros/go-rpi-rgb-led-matrix"
 )
 
 var (
@@ -58,6 +58,7 @@ type Animation struct {
 	position image.Point
 	dir      image.Point
 	stroke   int
+	State    rgbmatrix.State
 }
 
 func NewAnimation(sz image.Point) *Animation {
@@ -78,6 +79,10 @@ func (a *Animation) Next() (image.Image, <-chan time.Time, error) {
 	a.ctx.SetColor(color.RGBA{255, 0, 0, 255})
 	a.ctx.Fill()
 	return a.ctx.Image(), time.After(time.Millisecond * 50), nil
+}
+
+func (a *Animation) SetState(s rgbmatrix.State) {
+	a.State = s
 }
 
 func (a *Animation) updatePosition() {

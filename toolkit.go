@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+type State int
+
+const (
+	Running State = iota
+	Stopped
+	Kill
+)
+
 // ToolKit is a convinient set of function to operate with a led of Matrix
 type ToolKit struct {
 	// Canvas is the Canvas wrapping the Matrix, if you want to instanciate
@@ -45,31 +53,50 @@ func (tk *ToolKit) PlayImage(i image.Image, delay time.Duration) error {
 
 type Animation interface {
 	Next() (image.Image, <-chan time.Time, error)
+	SetState(state State)
 }
 
 // PlayAnimation play the image during the delay returned by Next, until an err
 // is returned, if io.EOF is returned, PlayAnimation finish without an error
-func (tk *ToolKit) PlayAnimation(a Animation) error {
+func (tk *ToolKit) PlayAnimation(a Animation) chan State {
 	var err error
 	var i image.Image
 	var n <-chan time.Time
+	quit := make(chan State)
+	state := Running
 
-	for {
-		i, n, err = a.Next()
-		if err != nil {
-			break
+	go func() {
+
+		for {
+			select {
+			// On channel event grab state
+			case state = <-quit:
+			// Default evaluate the state
+			default:
+				switch state {
+				case Stopped:
+					// passive wait
+					a.SetState(state)
+					state = <-quit
+				case Running:
+					i, n, err = a.Next()
+					if err != nil {
+						break
+					}
+
+					if err := tk.PlayImageUntil(i, n); err != nil {
+						return
+					}
+				case Kill:
+					return // quit
+				}
+				// Make the animation state aware
+				a.SetState(state)
+			}
 		}
+	}()
 
-		if err := tk.PlayImageUntil(i, n); err != nil {
-			return err
-		}
-	}
-
-	if err == io.EOF {
-		return nil
-	}
-
-	return err
+	return quit
 }
 
 // PlayImageUntil draws the given image until is notified to stop
